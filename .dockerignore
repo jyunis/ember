@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.git/
+.gitignore
+.env
+.env.local
+data/
+tests/
+.pre-commit-config.yaml
+# Claude Code worktrees + local state — nested under the repo, never built in.
+# Left out, these add the full size of every parallel cwt checkout (~200 MB+)
+# to the build context on every `docker compose build`.
+.claude/

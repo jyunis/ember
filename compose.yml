@@ -1,0 +1,76 @@
+services:
+  agent:
+    build:
+      context: .
+      args:
+        # Source revision stamped into the image as EMBER_IMAGE_VERSION for the
+        # v11 eval-harness config fingerprint. Build with
+        #   EMBER_GIT_SHA=$(git rev-parse --short HEAD) docker compose build
+        # (compose interpolates from the shell env / project .env; defaults to
+        # "unknown" when unset — the fingerprint then falls back to the CLI ver).
+        EMBER_GIT_SHA: ${EMBER_GIT_SHA:-unknown}
+    # Explicit image name so scripts/deploy.sh can tag each build ember:<sha>
+    # for rollback and correlate it with EMBER_IMAGE_VERSION. `docker compose
+    # build` tags this; `up` runs it.
+    image: ember:latest
+    container_name: ember
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      # Persistent state: SQLite, claude auth (~/.claude), future skills/identity.
+      - ./data:/data
+      # tiller-sync's nightly SQLite snapshot of the Tiller spreadsheets,
+      # read-only, for the tiller_query tool (TILLER_DB_PATH in .env).
+      # Absolute host path: it belongs to the tiller-sync service, not us.
+      - ${TILLER_HOST_DIR:-./data/tiller}:/data/tiller:ro
+    stdin_open: true  # so `docker compose exec agent claude login` is interactive
+    tty: true
+    environment:
+      # claude CLI >=2.1.18x defers tools behind a `ToolSearch` tool when the
+      # allowed set is large (Ember has ~60 agent tools). The model then can't
+      # reach them without ToolSearch — which Ember disallows — and errors with
+      # "No such tool available: ToolSearch", losing the whole turn. Disabling
+      # deferral shows all curated tools directly (the pre-2.1.18x behavior),
+      # which is what an autonomous agent wants — no tool hidden from scheduled
+      # skills. Inherited by the claude subprocess the provider spawns.
+      ENABLE_TOOL_SEARCH: "0"
+      # Keep the CLI on the image-pinned version (Dockerfile CLAUDE_CODE_VERSION).
+      # Self-update is already blocked by file perms (global bundle is root-owned),
+      # but this stops the CLI wasting startup time probing for updates.
+      DISABLE_AUTOUPDATER: "1"
+    # External DNS upstreams for the container's resolver. The host's
+    # /etc/resolv.conf points at tailscale MagicDNS (100.100.100.100), so by
+    # default every container resolves through it — and tailscaled briefly
+    # drops DNS whenever its link monitor reacts to veth/interface churn,
+    # which killed web_fetch/web_browse for ~30s at a time (ConnectError).
+    # Point straight at a LAN resolver (e.g. pihole on the host) with a public
+    # fallback, bypassing the MagicDNS path entirely. Docker's embedded
+    # resolver (127.0.0.11) still handles internal service names like
+    # `memory-api`.
+    dns:
+      - ${LAN_DNS:-1.1.1.1}  # LAN resolver — primary
+      - 1.1.1.1              # public fallback
+    networks:
+      - default
+      # home-proxy is shared with memory-api + documents-api etc., so
+      # ember reaches them as `memory-api:9927` / `documents-api:9929`.
+      - home-proxy
+    # Siri voice channel ingress (doc #55): Ember's only published port,
+    # bound to the host's TAILSCALE IP so it is reachable from tailnet
+    # devices (the Shortcut on the phone) but not from LAN or WAN. Auth is
+    # additionally a bearer token checked in the adapter (SIRI-TLC-4).
+    # Caveat: binding an address that doesn't exist yet fails at boot if
+    # docker starts before tailscaled brings the IP up, and dockerd does NOT
+    # retry that (unless-stopped doesn't help; the container also comes back
+    # missing home-proxy). The host sets net.ipv4.ip_nonlocal_bind=1
+    # (a sysctl.d drop-in on the host) so the bind
+    # succeeds regardless of start order. Set SIRI_BIND_IP to the
+    # host's tailscale IP.
+    # Everything else stays outbound (Discord is long-poll over the gateway).
+    ports:
+      - "${SIRI_BIND_IP:-127.0.0.1}:9940:9940"
+
+networks:
+  default:
+  home-proxy:
+    external: true

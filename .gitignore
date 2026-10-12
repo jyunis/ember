@@ -1,0 +1,40 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Runtime data — mounted volume
+data/
+
+# Nightly consistent SQLite dump of data/conversations.db, written by the
+# host restic job (/usr/local/bin/backup-host). Untracked files would
+# otherwise trip deploy.sh's clean-tree check.
+dump/
+
+# Secrets
+.env
+.env.local
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Claude Code local session state (cwt worktrees must never be committed)
+.claude/worktrees/
+.claude/settings.local.json
+
+# Skills are hand-written code, not runtime data — track them (2026-09-10).
+# Drafts, per-skill state, and bytecode stay out. data/portfolio/ (manual
+# holdings, personal financial figures) stays ignored on purpose.
+!data/
+data/*
+!data/skills/
+data/skills/_drafts/
+data/skills/_state/
+data/skills/**/__pycache__/
+# Hand-made backups of skill files — never part of the image, and they
+# would otherwise trip deploy.sh's clean-tree gate.
+data/skills/*.bak
