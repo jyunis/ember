@@ -5,7 +5,7 @@ an optional Siri voice channel), runs scheduled skills, and has tools for
 email, calendar, documents, recipes, the web, and a brokerage account. It runs
 as one Docker container on a home server.
 
-It's a hobby project, but I built it the way I'd build production software:
+It's a hobby project, but because I want to trust it with sensitive info, it needed to be well-specced:
 written contracts before code, invariants enforced in tests (~30k lines of
 source and ~55k lines of tests), and a learning loop that measures whether the
 agent is actually getting better.
